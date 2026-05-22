@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gauss-Seidel</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --panel: #0f1318;
+    --border: #1e2530;
+    --accent: #00d4aa;
+    --accent2: #0088ff;
+    --warn: #ff6b35;
+    --ok: #00d4aa;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --grid: #111827;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,170,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,170,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+  }
+
+  /* Header */
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  .badge {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid rgba(0,212,170,0.3);
+    padding: 4px 12px;
+    margin-bottom: 16px;
+    border-radius: 2px;
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1;
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 60%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 8px;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+
+  /* Panel */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.5;
+  }
+
+  .panel-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-title::before {
+    content: '';
+    width: 4px;
+    height: 4px;
+    background: var(--accent);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  /* Sistema de ecuaciones */
+  .equations-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .equation-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .eq-label {
+    font-size: 11px;
+    color: var(--muted);
+    width: 20px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .coef-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .var-label {
+    font-size: 12px;
+    color: var(--accent2);
+    font-style: italic;
+    min-width: 10px;
+  }
+
+  .op-label {
+    font-size: 14px;
+    color: var(--muted);
+    min-width: 12px;
+    text-align: center;
+  }
+
+  .eq-sign {
+    font-size: 16px;
+    color: var(--accent);
+    margin: 0 4px;
+  }
+
+  input[type="number"] {
+    background: #070a0e;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 7px 10px;
+    border-radius: 4px;
+    width: 72px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -moz-appearance: textfield;
+  }
+
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+  input[type="number"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(0,212,170,0.12);
+  }
+
+  /* Tolerancia e iteraciones */
+  .config-row {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .config-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .config-item label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .config-item input {
+    width: 130px;
+  }
+
+  /* Botón */
+  .btn-run {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 14px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.25s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-run::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.25s ease;
+    z-index: -1;
+  }
+
+  .btn-run:hover {
+    color: #000;
+    box-shadow: 0 0 20px rgba(0,212,170,0.25);
+  }
+
+  .btn-run:hover::before { transform: scaleX(1); }
+
+  .btn-run svg { width: 16px; height: 16px; }
+
+  /* Status box */
+  .status-box {
+    border-radius: 6px;
+    padding: 14px 18px;
+    font-size: 12px;
+    line-height: 1.6;
+    display: none;
+    margin-bottom: 24px;
+  }
+
+  .status-box.show { display: block; }
+
+  .status-box.error {
+    background: rgba(255,107,53,0.08);
+    border: 1px solid rgba(255,107,53,0.3);
+    color: #ff6b35;
+  }
+
+  .status-box.warning {
+    background: rgba(255,193,7,0.08);
+    border: 1px solid rgba(255,193,7,0.3);
+    color: #ffc107;
+  }
+
+  .status-box.success {
+    background: rgba(0,212,170,0.06);
+    border: 1px solid rgba(0,212,170,0.25);
+    color: var(--accent);
+  }
+
+  .status-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Tabla de iteraciones */
+  .results-panel { display: none; }
+  .results-panel.show { display: block; }
+
+  .iter-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .iter-table th {
+    font-family: 'Syne', sans-serif;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 10px 14px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .iter-table th:first-child { text-align: left; }
+
+  .iter-table td {
+    padding: 11px 14px;
+    text-align: center;
+    border-bottom: 1px solid rgba(30,37,48,0.6);
+    font-size: 13px;
+    transition: background 0.2s;
+  }
+
+  .iter-table td:first-child {
+    text-align: left;
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 1px;
+  }
+
+  .iter-table tbody tr:hover td { background: rgba(0,212,170,0.03); }
+
+  .iter-table .val-x { color: #7dd3fc; }
+  .iter-table .val-y { color: #a78bfa; }
+  .iter-table .val-z { color: #fb923c; }
+  .iter-table .val-err { color: var(--muted); font-size: 11px; }
+  .iter-table .val-err.converged { color: var(--accent); }
+
+  .iter-table tr.last-row td { border-bottom: none; }
+  .iter-table tr.last-row { background: rgba(0,212,170,0.04); }
+
+  /* Step detail */
+  .step-detail {
+    margin-top: 24px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .step-header {
+    background: rgba(0,212,170,0.06);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+  }
+
+  .step-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .step-eq {
+    font-size: 12px;
+    color: var(--text);
+    padding: 8px 12px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 4px;
+    border-left: 2px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1.8;
+  }
+
+  .step-eq .hl-x { color: #7dd3fc; font-weight: 600; }
+  .step-eq .hl-y { color: #a78bfa; font-weight: 600; }
+  .step-eq .hl-z { color: #fb923c; font-weight: 600; }
+  .step-eq .hl-r { color: var(--accent); font-weight: 700; }
+
+  /* Solution box */
+  .solution-box {
+    background: rgba(0,212,170,0.05);
+    border: 1px solid rgba(0,212,170,0.2);
+    border-radius: 8px;
+    padding: 24px;
+    margin-top: 24px;
+    text-align: center;
+  }
+
+  .solution-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 20px;
+  }
+
+  .solution-values {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+
+  .sol-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .sol-var {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 2px;
+  }
+
+  .sol-val {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+  }
+
+  .sol-val.vx { color: #7dd3fc; }
+  .sol-val.vy { color: #a78bfa; }
+  .sol-val.vz { color: #fb923c; }
+
+  /* Chevron for steps toggle */
+  .iter-row-clickable { cursor: pointer; }
+  .iter-row-clickable:hover td { background: rgba(0,212,170,0.06) !important; }
+
+  .expand-icon {
+    display: inline-block;
+    transition: transform 0.2s;
+    font-size: 10px;
+    margin-left: 6px;
+    color: var(--muted);
+  }
+
+  .expand-icon.open { transform: rotate(90deg); color: var(--accent); }
+
+  .step-detail-row { display: none; }
+  .step-detail-row.open { display: table-row; }
+  .step-detail-row td { padding: 0 !important; border: none !important; }
+  .step-inner { padding: 12px 16px 20px; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Animaciones */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .anim { animation: fadeInUp 0.3s ease both; }
+
+  @media (max-width: 600px) {
+    .equation-row { gap: 4px; }
+    input[type="number"] { width: 58px; padding: 6px 6px; font-size: 12px; }
+    .var-label { font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="badge">Análisis Numérico</div>
+    <h1>Gauss–Seidel</h1>
+    <p class="subtitle">Solver iterativo · 3 variables · 4 decimales</p>
+  </header>
+
+  <!-- Sistema de ecuaciones -->
+  <div class="panel">
+    <div class="panel-title">Sistema 3×3</div>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:20px;letter-spacing:0.5px;">
+      Ingresa los coeficientes a, b, c y el término independiente d para cada ecuación:<br>
+      <span style="color:#7dd3fc">a₁</span>x + <span style="color:#a78bfa">b₁</span>y + <span style="color:#fb923c">c₁</span>z = d₁
+    </p>
+    <div class="equations-grid">
+
+      <!-- Ecuación 1 -->
+      <div class="equation-row">
+        <span class="eq-label">E₁</span>
+        <div class="coef-group">
+          <input type="number" id="a11" value="10" step="any">
+          <span class="var-label" style="color:#7dd3fc">x</span>
+        </div>
+        <span class="op-label">+</span>
+        <div class="coef-group">
+          <input type="number" id="a12" value="2" step="any">
+          <span class="var-label" style="color:#a78bfa">y</span>
+        </div>
+        <span class="op-label">+</span>
+        <div class="coef-group">
+          <input type="number" id="a13" value="1" step="any">
+          <span class="var-label" style="color:#fb923c">z</span>
+        </div>
+        <span class="eq-sign">=</span>
+        <input type="number" id="b1" value="7" step="any">
+      </div>
+
+      <!-- Ecuación 2 -->
+      <div class="equation-row">
+        <span class="eq-label">E₂</span>
+        <div class="coef-group">
+          <input type="number" id="a21" value="1" step="any">
+          <span class="var-label" style="color:#7dd3fc">x</span>
+        </div>
+        <span class="op-label">+</span>
+        <div class="coef-group">
+          <input type="number" id="a22" value="5" step="any">
+          <span class="var-label" style="color:#a78bfa">y</span>
+        </div>
+        <span class="op-label">+</span>
+        <div class="coef-group">
+          <input type="number" id="a23" value="1" step="any">
+          <span class="var-label" style="color:#fb923c">z</span>
+        </div>
+        <span class="eq-sign">=</span>
+        <input type="number" id="b2" value="-8" step="any">
+      </div>
+
+      <!-- Ecuación 3 -->
+      <div class="equation-row">
+        <span class="eq-label">E₃</span>
+        <div class="coef-group">
+          <input type="number" id="a31" value="2" step="any">
+          <span class="var-label" style="color:#7dd3fc">x</span>
+        </div>
+        <span class="op-label">+</span>
+        <div class="coef-group">
+          <input type="number" id="a32" value="3" step="any">
+          <span class="var-label" style="color:#a78bfa">y</span>
+        </div>
+        <span class="op-label">+</span>
+        <div class="coef-group">
+          <input type="number" id="a33" value="10" step="any">
+          <span class="var-label" style="color:#fb923c">z</span>
+        </div>
+        <span class="eq-sign">=</span>
+        <input type="number" id="b3" value="6" step="any">
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Configuración -->
+  <div class="panel">
+    <div class="panel-title">Parámetros</div>
+    <div class="config-row">
+      <div class="config-item">
+        <label>Tolerancia (ε)</label>
+        <input type="number" id="tol" value="0.0001" step="any" style="width:140px;">
+      </div>
+      <div class="config-item">
+        <label>Máx. iteraciones</label>
+        <input type="number" id="maxIter" value="50" min="1" max="500" style="width:140px;">
+      </div>
+      <div class="config-item">
+        <label>x₀ inicial</label>
+        <input type="number" id="x0" value="0" step="any" style="width:100px;">
+      </div>
+      <div class="config-item">
+        <label>y₀ inicial</label>
+        <input type="number" id="y0" value="0" step="any" style="width:100px;">
+      </div>
+      <div class="config-item">
+        <label>z₀ inicial</label>
+        <input type="number" id="z0" value="0" step="any" style="width:100px;">
+      </div>
+    </div>
+  </div>
+
+  <!-- Botón -->
+  <button class="btn-run" onclick="runGaussSeidel()">
+    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M5 3l14 9-14 9V3z"/>
+    </svg>
+    Ejecutar Gauss-Seidel
+  </button>
+
+  <!-- Status -->
+  <div id="statusBox" class="status-box" style="margin-top:20px;"></div>
+
+  <!-- Resultados -->
+  <div id="resultsPanel" class="results-panel" style="margin-top:24px;">
+    <div id="diagCheck" class="panel anim"></div>
+    <div id="iterPanel" class="panel anim"></div>
+    <div id="solutionBox"></div>
+  </div>
+
+</div>
+
+<script>
+  const f4 = v => parseFloat(v.toFixed(4));
+  const s4 = v => v.toFixed(4);
+
+  function getMatrix() {
+    const g = id => parseFloat(document.getElementById(id).value) || 0;
+    return {
+      A: [
+        [g('a11'), g('a12'), g('a13')],
+        [g('a21'), g('a22'), g('a23')],
+        [g('a31'), g('a32'), g('a33')]
+      ],
+      b: [g('b1'), g('b2'), g('b3')],
+      tol: Math.abs(parseFloat(document.getElementById('tol').value)) || 0.0001,
+      maxIter: parseInt(document.getElementById('maxIter').value) || 50,
+      x0: [
+        parseFloat(document.getElementById('x0').value) || 0,
+        parseFloat(document.getElementById('y0').value) || 0,
+        parseFloat(document.getElementById('z0').value) || 0
+      ]
+    };
+  }
+
+  function checkDiagDominant(A) {
+    const results = [];
+    let allStrict = true, allWeak = true;
+    for (let i = 0; i < 3; i++) {
+      const diag = Math.abs(A[i][i]);
+      let sumOff = 0;
+      for (let j = 0; j < 3; j++) if (j !== i) sumOff += Math.abs(A[i][j]);
+      const ratio = f4(diag / (sumOff || 1e-12));
+      const strict = diag > sumOff;
+      const weak = diag >= sumOff;
+      if (!strict) allStrict = false;
+      if (!weak) allWeak = false;
+      results.push({ i, diag, sumOff: f4(sumOff), ratio, strict, weak });
+    }
+    return { rows: results, allStrict, allWeak };
+  }
+
+  function tryReorder(A, b) {
+    // Try all permutations of rows to find diagonal dominant
+    const perms = [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
+    for (const p of perms) {
+      const Ap = p.map(i => [...A[i]]);
+      const bp = p.map(i => b[i]);
+      const check = checkDiagDominant(Ap);
+      if (check.allStrict) return { A: Ap, b: bp, perm: p, check };
+    }
+    // Try for weak
+    for (const p of perms) {
+      const Ap = p.map(i => [...A[i]]);
+      const bp = p.map(i => b[i]);
+      const check = checkDiagDominant(Ap);
+      if (check.allWeak) return { A: Ap, b: bp, perm: p, check };
+    }
+    return null;
+  }
+
+  function gaussSeidel(A, b, x0, tol, maxIter) {
+    let x = [...x0];
+    const iters = [];
+
+    for (let k = 0; k < maxIter; k++) {
+      const xOld = [...x];
+      const steps = [];
+
+      for (let i = 0; i < 3; i++) {
+        let sigma = 0;
+        let sigmaStr = '';
+        for (let j = 0; j < 3; j++) {
+          if (j !== i) {
+            sigma += A[i][j] * x[j];
+            const sign = A[i][j] >= 0 ? '+' : '';
+            sigmaStr += `${sign}(${s4(A[i][j])}×${s4(x[j])}) `;
+          }
+        }
+        const newVal = (b[i] - sigma) / A[i][i];
+        steps.push({
+          varIdx: i,
+          formula: `(${s4(b[i])} - [${sigmaStr.trim()}]) / ${s4(A[i][i])}`,
+          oldVal: f4(xOld[i]),
+          newVal: f4(newVal)
+        });
+        x[i] = newVal;
+      }
+
+      // Error: max relative
+      let maxErr = 0;
+      const errs = [];
+      for (let i = 0; i < 3; i++) {
+        const e = x[i] !== 0 ? Math.abs((x[i] - xOld[i]) / x[i]) : Math.abs(x[i] - xOld[i]);
+        errs.push(f4(e));
+        if (e > maxErr) maxErr = e;
+      }
+
+      iters.push({
+        k: k + 1,
+        x: x.map(v => f4(v)),
+        errs,
+        maxErr: f4(maxErr),
+        steps
+      });
+
+      if (maxErr < tol && k > 0) {
+        return { iters, converged: true, solution: x.map(v => f4(v)) };
+      }
+    }
+
+    return { iters, converged: false, solution: x.map(v => f4(v)) };
+  }
+
+  function renderDiagCheck(A, b, check, reordered, perm) {
+    const varNames = ['x', 'y', 'z'];
+    const colors = ['#7dd3fc', '#a78bfa', '#fb923c'];
+    let html = `<div class="panel-title">Verificación: Diagonal Dominante</div>`;
+    html += `<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px;">`;
+
+    check.rows.forEach(r => {
+      const icon = r.strict ? '✓' : (r.weak ? '≈' : '✗');
+      const col = r.strict ? 'var(--accent)' : (r.weak ? '#ffc107' : '#ff6b35');
+      html += `
+        <div style="display:flex;align-items:center;gap:12px;font-size:12px;">
+          <span style="color:${col};font-size:14px;width:16px;">${icon}</span>
+          <span style="color:var(--muted);">Fila ${r.i+1}:</span>
+          <span style="color:${colors[r.i]};font-weight:600;">|a<sub>${r.i+1}${r.i+1}</sub>| = ${s4(r.diag)}</span>
+          <span style="color:var(--muted);"> vs Σ|a<sub>ij</sub>| = ${s4(r.sumOff)}</span>
+          <span style="color:${col};margin-left:4px;">→ ratio ${s4(r.ratio)}</span>
+        </div>`;
+    });
+    html += `</div>`;
+
+    if (reordered) {
+      const rowNames = ['E₁','E₂','E₃'];
+      html += `<div style="background:rgba(255,193,7,0.07);border:1px solid rgba(255,193,7,0.25);border-radius:6px;padding:12px 16px;font-size:12px;color:#ffc107;margin-bottom:10px;">
+        ⚠ El sistema original no era diagonalmente dominante. Se reordenaron las ecuaciones:<br>
+        <span style="color:var(--muted);margin-top:6px;display:inline-block;">${rowNames[perm[0]]} → E₁ · ${rowNames[perm[1]]} → E₂ · ${rowNames[perm[2]]} → E₃</span>
+      </div>`;
+    } else if (check.allStrict) {
+      html += `<div style="background:rgba(0,212,170,0.06);border:1px solid rgba(0,212,170,0.2);border-radius:6px;padding:12px 16px;font-size:12px;color:var(--accent);">
+        ✓ El sistema es estrictamente diagonalmente dominante. Convergencia garantizada.
+      </div>`;
+    }
+
+    document.getElementById('diagCheck').innerHTML = html;
+  }
+
+  function renderIterations(iters, tol) {
+    let html = `<div class="panel-title">Iteraciones</div>`;
+    html += `<p style="font-size:11px;color:var(--muted);margin-bottom:16px;">Haz clic en una fila para ver el desarrollo paso a paso.</p>`;
+    html += `<div style="overflow-x:auto;"><table class="iter-table">
+      <thead><tr>
+        <th>Iter.</th>
+        <th>x</th><th>y</th><th>z</th>
+        <th>Error máx.</th>
+        <th></th>
+      </tr></thead><tbody>`;
+
+    iters.forEach((it, idx) => {
+      const isLast = idx === iters.length - 1;
+      const convErr = it.maxErr < tol && idx > 0;
+      html += `
+        <tr class="iter-row-clickable${isLast ? ' last-row' : ''}" onclick="toggleStep(${idx})">
+          <td>k = ${it.k}</td>
+          <td class="val-x">${s4(it.x[0])}</td>
+          <td class="val-y">${s4(it.x[1])}</td>
+          <td class="val-z">${s4(it.x[2])}</td>
+          <td class="val-err${convErr ? ' converged' : ''}">${s4(it.maxErr)}${convErr ? ' ✓' : ''}</td>
+          <td><span class="expand-icon" id="icon-${idx}">▶</span></td>
+        </tr>
+        <tr class="step-detail-row" id="step-${idx}">
+          <td colspan="6">
+            <div class="step-inner">
+              ${renderStepDetail(it)}
+            </div>
+          </td>
+        </tr>`;
+    });
+
+    html += `</tbody></table></div>`;
+    document.getElementById('iterPanel').innerHTML = html;
+  }
+
+  function renderStepDetail(it) {
+    const varNames = ['x', 'y', 'z'];
+    const colors = ['#7dd3fc', '#a78bfa', '#fb923c'];
+    let html = `<div style="display:flex;flex-direction:column;gap:8px;">`;
+    it.steps.forEach(s => {
+      const vn = varNames[s.varIdx];
+      const vc = colors[s.varIdx];
+      html += `<div class="step-eq">
+        <span style="color:${vc};font-weight:700;">${vn}</span>
+        = ${s.formula}
+        &nbsp;→&nbsp;
+        <span class="hl-r">${s4(s.newVal)}</span>
+        &nbsp;<span style="color:var(--muted);font-size:11px;">(anterior: ${s4(s.oldVal)})</span>
+      </div>`;
+    });
+    html += `<div style="font-size:11px;color:var(--muted);display:flex;gap:16px;margin-top:4px;flex-wrap:wrap;">`;
+    ['x','y','z'].forEach((v,i) => {
+      html += `<span>ε<sub>${v}</sub> = ${s4(it.errs[i])}</span>`;
+    });
+    html += `<span style="color:var(--accent);">ε<sub>máx</sub> = ${s4(it.maxErr)}</span></div>`;
+    html += `</div>`;
+    return html;
+  }
+
+  function toggleStep(idx) {
+    const row = document.getElementById(`step-${idx}`);
+    const icon = document.getElementById(`icon-${idx}`);
+    const open = row.classList.toggle('open');
+    icon.classList.toggle('open', open);
+  }
+
+  function renderSolution(sol, converged, iters, tol) {
+    const box = document.getElementById('solutionBox');
+    if (!converged) {
+      box.innerHTML = `<div class="status-box show warning">
+        <div class="status-title">⚠ No convergió</div>
+        El método no alcanzó la tolerancia ε = ${tol} en ${iters} iteraciones.<br>
+        Los valores mostrados son la última aproximación obtenida.
+      </div>`;
+    }
+    box.innerHTML += `<div class="solution-box anim">
+      <div class="solution-title">${converged ? '✓ Solución convergida' : 'Última aproximación'}</div>
+      <div class="solution-values">
+        <div class="sol-item"><span class="sol-var">X</span><span class="sol-val vx">${s4(sol[0])}</span></div>
+        <div class="sol-item"><span class="sol-var">Y</span><span class="sol-val vy">${s4(sol[1])}</span></div>
+        <div class="sol-item"><span class="sol-var">Z</span><span class="sol-val vz">${s4(sol[2])}</span></div>
+      </div>
+      ${converged ? `<p style="font-size:11px;color:var(--muted);margin-top:16px;">Convergido en ${iters} iteración${iters===1?'':'es'} · ε < ${tol}</p>` : ''}
+    </div>`;
+  }
+
+  function showStatus(msg, type) {
+    const box = document.getElementById('statusBox');
+    const icons = { error: '✗', warning: '⚠', success: '✓' };
+    box.className = `status-box show ${type}`;
+    box.innerHTML = `<div class="status-title">${icons[type]} ${type === 'error' ? 'Error' : type === 'warning' ? 'Advertencia' : 'OK'}</div>${msg}`;
+  }
+
+  function runGaussSeidel() {
+    const { A, b, tol, maxIter, x0 } = getMatrix();
+    document.getElementById('statusBox').className = 'status-box';
+    document.getElementById('resultsPanel').className = 'results-panel';
+    document.getElementById('solutionBox').innerHTML = '';
+
+    // Verificar ceros en diagonal
+    for (let i = 0; i < 3; i++) {
+      if (A[i][i] === 0) {
+        showStatus(`El coeficiente diagonal a<sub>${i+1}${i+1}</sub> = 0. No se puede dividir entre cero.<br>Reordena manualmente las ecuaciones para que la diagonal no tenga ceros.`, 'error');
+        return;
+      }
+    }
+
+    // Verificar que el sistema no sea trivial (todos ceros)
+    const allZero = A.every(row => row.every(v => v === 0));
+    if (allZero) {
+      showStatus('Todos los coeficientes son cero. El sistema no tiene solución única.', 'error');
+      return;
+    }
+
+    // Verificar diagonal dominante
+    let checkResult = checkDiagDominant(A);
+    let useA = A, useb = b, reordered = false, perm = [0,1,2];
+
+    if (!checkResult.allWeak) {
+      const reorder = tryReorder(A, b);
+      if (reorder) {
+        useA = reorder.A; useb = reorder.b;
+        checkResult = reorder.check; perm = reorder.perm;
+        reordered = true;
+        showStatus(
+          `El sistema original no es diagonalmente dominante. Se reorganizaron las filas para favorecer la convergencia. El método <b>podría converger</b> de todos modos.`,
+          'warning'
+        );
+      } else {
+        showStatus(
+          `⚠ El sistema no es diagonalmente dominante en ninguna permutación. La convergencia <b>no está garantizada</b>, pero se ejecutará el método. Si diverge, considera usar otro método.`,
+          'warning'
+        );
+      }
+    }
+
+    // Ejecutar
+    const { iters, converged, solution } = gaussSeidel(useA, useb, x0, tol, maxIter);
+
+    document.getElementById('resultsPanel').className = 'results-panel show';
+    renderDiagCheck(useA, useb, checkResult, reordered, perm);
+    renderIterations(iters, tol);
+    renderSolution(solution, converged, iters.length, tol);
+
+    if (converged && document.getElementById('statusBox').className.includes('warning') === false) {
+      showStatus(`Convergencia alcanzada en <b>${iters.length}</b> iteración${iters.length===1?'':'es'} con ε = ${tol}.`, 'success');
+    }
+  }
+</script>
+</body>
+</html>
